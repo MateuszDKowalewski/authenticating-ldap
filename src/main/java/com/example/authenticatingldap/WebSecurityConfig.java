@@ -1,25 +1,35 @@
 package com.example.authenticatingldap;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.security.config.annotation.authentication.builders.AuthenticationManagerBuilder;
+import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configuration.WebSecurityConfigurerAdapter;
 import org.springframework.security.crypto.password.NoOpPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
+import javax.sql.DataSource;
+
 @EnableWebSecurity
 public class WebSecurityConfig extends WebSecurityConfigurerAdapter {
 
+    @Autowired
+    DataSource dataSource;
+
     @Override
     public void configure(AuthenticationManagerBuilder auth) throws Exception {
-        auth.inMemoryAuthentication()
-                .withUser("blah")
-                .password("blah")
-                .roles("USER")
-                .and()
-                .withUser("admin")
-                .password("admin")
-                .roles("ADMIN");
+        auth.jdbcAuthentication()
+                .dataSource(dataSource)
+                .usersByUsernameQuery(
+                        "SELECT username, password, enabled " +
+                        "FROM users " +
+                        "WHERE username = ?"
+                ).authoritiesByUsernameQuery(
+                        "SELECT username, authority " +
+                        "FROM authorities " +
+                        "WHERE username = ?"
+                );
     }
 
     @Bean
@@ -27,14 +37,14 @@ public class WebSecurityConfig extends WebSecurityConfigurerAdapter {
         return NoOpPasswordEncoder.getInstance();
     }
 
-//    @Override
-//    protected void configure(HttpSecurity http) throws Exception {
-//        http
-//                .authorizeRequests()
-//                .anyRequest().fullyAuthenticated()
-//                .and()
-//                .formLogin();
-//    }
+    @Override
+    protected void configure(HttpSecurity http) throws Exception {
+        http.authorizeRequests()
+                .antMatchers("/admin").hasRole("ADMIN")
+                .antMatchers("/user").hasAnyRole("USER", "ADMIN")
+                .antMatchers("/").permitAll()
+                .and().formLogin();
+    }
 
 //    @Override
 //    public void configure(AuthenticationManagerBuilder auth) throws Exception {
